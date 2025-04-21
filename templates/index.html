@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <title>Timeline aplikací</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        h1 {
+            text-align: center;
+        }
+        /* Kontejner timeline – výška nastavena na 1380px odpovídající minutám od 1:00 do 0:00 */
+        #timeline-container {
+            position: relative;
+            width: 80%;
+            margin: auto;
+            border: 1px solid #ccc;
+            height: 1380px;
+        }
+        /* Hodinové značky */
+        .hour-marker {
+            position: absolute;
+            width: 100%;
+            border-top: 1px dashed #aaa;
+            font-size: 12px;
+            color: #555;
+        }
+        .hour-label {
+            position: absolute;
+            left: 0;
+            top: -8px;
+            background: #fff;
+            padding: 0 4px;
+        }
+        /* Blok session – umístěn napravo od hodinových značek */
+        .session {
+            position: absolute;
+            left: 100px;
+            right: 10px;
+            background-color: #4CAF50;
+            color: white;
+            padding: 2px 5px;
+            border-radius: 4px;
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Timeline aplikací</h1>
+    <div id="timeline-container"></div>
+
+    <script>
+        const container = document.getElementById('timeline-container');
+        const containerHeight = container.clientHeight;
+        // Definujeme časové okno timeline: od 1:00 (60 minut) do 0:00 (1440 minut)
+        const timelineStartMinutes = 60;
+        const timelineEndMinutes = 1440;
+        const totalMinutes = timelineEndMinutes - timelineStartMinutes; // 1380 minut
+
+        // Vykreslíme hodinové značky (od 1:00 do 0:00)
+        function renderHourMarkers() {
+            container.innerHTML = ''; // vyčistíme kontejner
+            for (let hour = 1; hour <= 24; hour++) {
+                let displayHour = (hour === 24) ? "0:00" : hour + ":00";
+                let minutes = (hour === 24) ? 1440 : hour * 60;
+                if (minutes < timelineStartMinutes) continue;
+                let top = ((minutes - timelineStartMinutes) / totalMinutes) * containerHeight;
+                let marker = document.createElement('div');
+                marker.className = 'hour-marker';
+                marker.style.top = top + 'px';
+                let label = document.createElement('span');
+                label.className = 'hour-label';
+                label.innerText = displayHour;
+                marker.appendChild(label);
+                container.appendChild(marker);
+            }
+        }
+
+        // Načte data session z backendu
+        async function fetchData() {
+            let response = await fetch('/data');
+            let data = await response.json();
+            return data;
+        }
+
+        // Vykreslí session bloky na timeline dle jejich času začátku a délky
+        function renderSessions(sessions) {
+            sessions.forEach(session => {
+                let startDate = new Date(session.start);
+                let endDate = new Date(session.end);
+                let startMinutes = startDate.getHours() * 60 + startDate.getMinutes();
+                let endMinutes = endDate.getHours() * 60 + endDate.getMinutes();
+                if (startMinutes < timelineStartMinutes || startMinutes > 1440) return;
+                if (endMinutes > 1440) endMinutes = 1440;
+                let top = ((startMinutes - timelineStartMinutes) / totalMinutes) * containerHeight;
+                let height = ((endMinutes - startMinutes) / totalMinutes) * containerHeight;
+                if (height < 5) height = 5;
+                let div = document.createElement('div');
+                div.className = 'session';
+                div.style.top = top + 'px';
+                div.style.height = height + 'px';
+                div.title = `${session.app}\nOd: ${session.start}\nDo: ${session.end}`;
+                div.innerText = session.app;
+                container.appendChild(div);
+            });
+        }
+
+        // Aktualizace timeline: vykreslíme značky a poté session bloky
+        async function updateTimeline() {
+            renderHourMarkers();
+            let sessions = await fetchData();
+            renderSessions(sessions);
+        }
+
+        // Načítáme data každých 30 sekund
+        setInterval(updateTimeline, 30000);
+        updateTimeline();
+    </script>
+</body>
+</html>
